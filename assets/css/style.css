@@ -217,6 +217,13 @@ body::after {  /* feine Vignette */
   font-size: 12px;
   transition: border-color .3s var(--ease), background .3s var(--ease);
 }
+/* Touchgeräte: Mobile Browser (vor allem Safari) zoomen automatisch auf
+   Eingabefelder mit weniger als 16px Schriftgröße – und zoomen danach
+   nicht von selbst zurück. Deshalb hier bewusst 16px. */
+@media (pointer: coarse), (max-width: 900px) {
+  .search__input { font-size: 16px; padding: 10px 12px 10px 34px; }
+  .search__icon { left: 12px; }
+}
 .search__input::placeholder { color: var(--ink-3); }
 .search__input:focus { border-color: var(--gold-dim); background: rgba(13,20,36,.95); outline: none; }
 .search__icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
@@ -647,6 +654,7 @@ body::after {  /* feine Vignette */
   .current { order: 3; flex-basis: 100%; align-items: flex-start; text-align: left; }
   .current__title { max-width: 100%; }
   .search { width: auto; flex: 1 1 140px; }
+  .search__results { width: 100%; left: 0; right: 0; }
   #yearnav { top: auto; bottom: 76px; }
   #panelFilters, #panelParties, #panelMap {
     top: auto; bottom: 132px; left: 12px; right: 12px; width: auto;

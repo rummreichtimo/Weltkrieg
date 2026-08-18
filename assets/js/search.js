@@ -42,6 +42,12 @@
     this.input.addEventListener('input', function () { self.run(self.input.value); });
     this.input.addEventListener('focus', function () { if (self.input.value.trim()) self.run(self.input.value); });
 
+    /* Nach dem Schließen der Bildschirmtastatur kann die Seite auf
+       Touchgeräten verschoben zurückbleiben – wieder zurücksetzen. */
+    this.input.addEventListener('blur', function () {
+      if (global.scrollX || global.scrollY) global.scrollTo(0, 0);
+    });
+
     this.input.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
