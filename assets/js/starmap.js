@@ -627,13 +627,43 @@
       self.setTransform(k2, mx - (mx - self.tx) * ratio, my - (my - self.ty) * ratio);
     }, { passive: false });
 
+    /* Zeigerverwaltung.
+       Wichtig: Jede Änderung der Fingerzahl setzt den Bezugspunkt der
+       Geste neu. Ohne dieses Neu-Einmessen würde der verbleibende Finger
+       nach einem Zwei-Finger-Zoom mit den Werten von VOR dem Zoomen
+       weiterschieben – die Karte spränge dann an eine andere Stelle. */
+    function rebaseGesture() {
+      var entries = Array.from(self.pointers.entries());
+      if (entries.length === 1) {
+        self.pinchStart = null;
+        self.dragStart = {
+          id: entries[0][0],
+          x: entries[0][1].x, y: entries[0][1].y,
+          tx: self.tx, ty: self.ty
+        };
+      } else if (entries.length >= 2) {
+        self.dragStart = null;
+        self.pinchStart = self.pinchState();
+      } else {
+        self.dragStart = null;
+        self.pinchStart = null;
+      }
+    }
+
     svg.addEventListener('pointerdown', function (e) {
-      svg.setPointerCapture(e.pointerId);
+      try { svg.setPointerCapture(e.pointerId); } catch (err) { /* Zeiger bereits beendet */ }
       self.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      self.dragged = false;
-      self.dragStart = { x: e.clientX, y: e.clientY, tx: self.tx, ty: self.ty };
-      self.downTarget = e.target.closest ? e.target.closest('.star') : null;
-      if (self.pointers.size === 2) self.pinchStart = self.pinchState();
+
+      if (self.pointers.size === 1) {
+        self.dragged = false;
+        self.downTarget = e.target.closest ? e.target.closest('.star') : null;
+      } else {
+        /* Mehrfingergeste nie als Auswahl werten */
+        self.dragged = true;
+        self.downTarget = null;
+      }
+
+      rebaseGesture();
       if (self.anim) { cancelAnimationFrame(self.anim); self.anim = null; }
       svg.classList.add('is-panning');
     });
@@ -642,6 +672,7 @@
       if (!self.pointers.has(e.pointerId)) return;
       self.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
+      /* Zwei Finger: zoomen um den Mittelpunkt zwischen den Fingern */
       if (self.pointers.size >= 2 && self.pinchStart) {
         var now = self.pinchState();
         var scale = now.dist / self.pinchStart.dist;
@@ -656,13 +687,17 @@
         return;
       }
 
-      if (!self.dragStart) return;
+      /* Ein Finger: verschieben – aber nur der Finger, der die Geste führt */
+      if (!self.dragStart || e.pointerId !== self.dragStart.id) return;
       var dx = e.clientX - self.dragStart.x, dy = e.clientY - self.dragStart.y;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) self.dragged = true;
       self.setTransform(self.k, self.dragStart.tx + dx, self.dragStart.ty + dy);
     });
 
     function endPointer(e) {
+      /* lostpointercapture folgt auf pointerup – nur einmal auswerten */
+      if (!self.pointers.has(e.pointerId)) return;
+
       /* Auswahl beim Loslassen auswerten: Wegen setPointerCapture erreicht
          das anschließende click-Ereignis nicht mehr den Stern selbst. */
       if (e.type === 'pointerup' && !self.dragged && self.pointers.size === 1) {
@@ -672,12 +707,17 @@
           WW1.bus.emit('select', { id: null, source: 'map' });
         }
       }
-      self.downTarget = null;
+
       self.pointers.delete(e.pointerId);
-      if (self.pointers.size < 2) self.pinchStart = null;
+
       if (self.pointers.size === 0) {
         self.dragStart = null;
+        self.pinchStart = null;
+        self.downTarget = null;
         svg.classList.remove('is-panning');
+      } else {
+        /* Verbleibende Finger auf den aktuellen Kartenstand neu einmessen */
+        rebaseGesture();
       }
     }
     svg.addEventListener('pointerup', endPointer);
