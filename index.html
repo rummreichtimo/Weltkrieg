@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Der Erste Weltkrieg – Eine interaktive Sternenkarte der Geschichte</title>
+<meta name="description" content="Die Ereignisse des Ersten Weltkriegs 1914–1918 als interaktive Sternenkarte: Zeitlinie, Ursache-Wirkungs-Ketten, Europakarte und Präsentationsmodus für den Unterricht.">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<!-- Hintergrund -->
+<canvas id="starfield" aria-hidden="true"></canvas>
+<div id="nebula" aria-hidden="true"></div>
+
+<!-- 12 · STARTSEITE -->
+<section id="intro" class="intro">
+  <div class="intro__inner">
+    <p class="intro__kicker">Eine interaktive Sternenkarte der Geschichte</p>
+    <h1 class="intro__title">Der Erste Weltkrieg</h1>
+    <p class="intro__years"><span>1914</span><i></i><span>1918</span></p>
+    <p class="intro__lead">Eine interaktive Reise durch die Ereignisse, die Europa veränderten.</p>
+    <div class="intro__actions">
+      <button id="startBtn" class="btn btn--primary">Zeitreise starten</button>
+    </div>
+    <p class="intro__hint"><span id="introCount">–</span> Ereignisse · Ziehen zum Bewegen · Mausrad zum Zoomen</p>
+  </div>
+</section>
+
+<!-- HAUPTANSICHT -->
+<div id="stage" class="stage" aria-hidden="true">
+
+  <!-- 13 · INFORMATIONSLEISTE -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand__title">Der Erste Weltkrieg</span>
+      <span class="brand__years">1914–1918</span>
+    </div>
+
+    <div class="current" id="current">
+      <span class="current__date" id="currentDate">Gesamtansicht</span>
+      <span class="current__title" id="currentTitle">Wählen Sie einen Stern auf der Zeitlinie</span>
+    </div>
+
+    <div class="search">
+      <span class="search__icon" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+        </svg>
+      </span>
+      <label class="u-sr" for="searchInput">Ereignisse durchsuchen</label>
+      <input id="searchInput" class="search__input" type="search" autocomplete="off"
+             placeholder="Suchen: Verdun, USA, 1917 …">
+      <div id="searchResults" class="search__results" role="listbox" aria-label="Suchergebnisse"></div>
+    </div>
+  </header>
+
+  <!-- 7 · JAHR-NAVIGATION -->
+  <nav id="yearnav" aria-label="Jahrnavigation"></nav>
+
+  <!-- 2 · DIE STERNENKARTE -->
+  <svg id="starmap" role="application" aria-label="Sternenkarte der Ereignisse des Ersten Weltkriegs"></svg>
+
+  <!-- 8 · KATEGORIEN-FILTER -->
+  <aside id="panelFilters" class="panel" aria-label="Kategorien und Filter">
+    <div class="panel__head">
+      <span class="panel__title">Kategorien</span>
+      <button class="panel__close" data-close-panel="filters" aria-label="Schließen">×</button>
+    </div>
+    <div class="panel__body">
+      <div id="filterList"></div>
+      <div class="filter-actions">
+        <button id="filterAll">Alle</button>
+        <button id="filterNone">Keine</button>
+      </div>
+      <p class="legend-note">Die Größe eines Sterns zeigt die Bedeutung des Ereignisses, seine Farbe die Kategorie.</p>
+    </div>
+  </aside>
+
+  <!-- 9 · KRIEGSPARTEIEN -->
+  <aside id="panelParties" class="panel" aria-label="Kriegsparteien">
+    <div class="panel__head">
+      <span class="panel__title">Kriegsparteien</span>
+      <button class="panel__close" data-close-panel="parties" aria-label="Schließen">×</button>
+    </div>
+    <div class="panel__body" id="partiesBody"></div>
+  </aside>
+
+  <!-- 10 · EUROPAKARTE -->
+  <aside id="panelMap" class="panel" aria-label="Europakarte">
+    <div class="panel__head">
+      <span class="panel__title">Schauplatz</span>
+      <button class="panel__close" data-close-panel="map" aria-label="Schließen">×</button>
+    </div>
+    <div class="panel__body">
+      <svg id="europeMap" viewBox="0 0 100 100" role="img" aria-label="Schematische Karte Europas mit Frontverläufen"></svg>
+      <p class="map-note" id="mapNote">Schematische Übersicht. Hauptstädte und Ereignisorte sind verortet, Frontverläufe stark vereinfacht dargestellt.</p>
+    </div>
+  </aside>
+
+  <!-- 14 · DETAILANSICHT -->
+  <aside id="detail" class="detail" aria-label="Ereignisdetails" aria-hidden="true">
+    <div class="detail__top">
+      <span class="detail__cat" id="detailCat"><i></i><span></span></span>
+      <button class="panel__close" id="detailClose" aria-label="Detailansicht schließen">×</button>
+    </div>
+    <div class="detail__scroll" id="detailBody"></div>
+    <div class="detail__nav">
+      <button id="prevEvent"><span>← Vorheriges</span><small></small></button>
+      <button id="nextEvent"><span>Nächstes →</span><small></small></button>
+    </div>
+  </aside>
+
+  <!-- 19 · STEUERUNG -->
+  <div id="dock">
+    <button class="dock-btn dock-btn--wide" id="playBtn" title="Kriegsverlauf automatisch abspielen">
+      <svg width="10" height="11" viewBox="0 0 10 11" fill="currentColor" id="playIcon"><path d="M0 0l10 5.5L0 11z"/></svg>
+      <span class="dock-btn__label" id="playLabel">Kriegsverlauf abspielen</span>
+    </button>
+    <span class="dock-sep"></span>
+    <button class="dock-btn" data-toggle-panel="filters" title="Kategorien filtern">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+      <span class="dock-btn__label">Filter</span>
+    </button>
+    <button class="dock-btn" data-toggle-panel="parties" title="Kriegsparteien anzeigen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 8h14M5 16h14"/></svg>
+      <span class="dock-btn__label">Parteien</span>
+    </button>
+    <button class="dock-btn" data-toggle-panel="map" title="Europakarte anzeigen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>
+      <span class="dock-btn__label">Karte</span>
+    </button>
+    <span class="dock-sep"></span>
+    <button class="dock-btn dock-btn--icon" id="zoomIn" title="Hineinzoomen" aria-label="Hineinzoomen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="dock-btn dock-btn--icon" id="zoomOut" title="Herauszoomen" aria-label="Herauszoomen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+    </button>
+    <button class="dock-btn dock-btn--icon" id="resetView" title="Gesamten Krieg anzeigen" aria-label="Gesamtansicht">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg>
+    </button>
+    <span class="dock-sep"></span>
+    <button class="dock-btn" id="openBilanz" title="Bilanz und Folgen des Krieges">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      <span class="dock-btn__label">Bilanz</span>
+    </button>
+    <button class="dock-btn dock-btn--icon" id="helpBtn" title="Hilfe" aria-label="Hilfe">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.2 9a3 3 0 115.5 1.7c-.9 1-2.2 1.6-2.2 3.1"/><circle cx="12.4" cy="17.6" r=".6" fill="currentColor"/></svg>
+    </button>
+  </div>
+
+  <div id="progress"><div id="progressBar"></div></div>
+</div>
+
+<!-- 23 · ABSCHLUSS -->
+<section id="finale" class="overlay" aria-hidden="true">
+  <div class="finale">
+    <p class="finale__date">11. November 1918</p>
+    <h2 class="finale__title">Der Waffenstillstand</h2>
+    <div class="finale__line"></div>
+    <p class="finale__text">Nach vier Jahren Krieg schweigen die Waffen.</p>
+    <p class="finale__sub">Um 11 Uhr des 11. Tages im 11. Monat endeten die Kämpfe an der Westfront – 1&nbsp;568 Tage nach der ersten Kriegserklärung vom 28. Juli 1914 und rund 17&nbsp;Millionen Toten.</p>
+    <div class="finale__actions">
+      <button class="btn btn--primary" id="openAftermath">Was blieb?</button>
+      <button class="btn" id="closeFinale">Zur Karte zurück</button>
+    </div>
+  </div>
+</section>
+
+<!-- „WAS BLIEB?“ -->
+<section id="aftermath" class="sheet" aria-hidden="true">
+  <button class="btn btn--ghost sheet__close" id="closeAftermath">× Schließen</button>
+  <div class="sheet__inner">
+    <p class="sheet__kicker">Nach dem 11. November 1918</p>
+    <h2 class="sheet__title">Was blieb?</h2>
+    <p class="sheet__lead">Der Erste Weltkrieg endete militärisch 1918 – seine Folgen bestimmten das gesamte 20. Jahrhundert. Vier Imperien verschwanden, die Landkarte Europas wurde neu gezeichnet, und aus den ungelösten Konflikten des Friedensschlusses erwuchs die nächste Katastrophe.</p>
+    <div class="grid" id="aftermathGrid"></div>
+
+    <div class="chart">
+      <h3 class="chart__title">Gefallene Soldaten nach Staaten</h3>
+      <p class="chart__sub">Geschätzte Zahl gefallener Soldaten in Millionen. Die Angaben schwanken je nach Quelle erheblich – bewegen Sie den Zeiger über eine Zeile für Hinweise.</p>
+      <div class="chart__legend">
+        <span><i style="background:#C4863F"></i>Mittelmächte</span>
+        <span><i style="background:#5A8ACF"></i>Entente / Alliierte</span>
+      </div>
+      <div class="bars" id="lossBars"></div>
+      <button class="table-toggle" id="tableToggle" aria-expanded="false">Als Tabelle anzeigen</button>
+      <table class="data-table" id="lossTable">
+        <caption class="u-sr">Geschätzte gefallene Soldaten nach Staaten in Millionen</caption>
+        <thead><tr><th scope="col">Staat</th><th scope="col">Gefallene (Mio.)</th><th scope="col">Bündnis</th><th scope="col">Anmerkung</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="chart__foot">Insgesamt starben rund 9 bis 10 Millionen Soldaten und 6 bis 7 Millionen Zivilistinnen und Zivilisten. Alle Werte sind Schätzungen: Viele Armeen führten keine vollständigen Statistiken, Vermisste und an Krankheiten Gestorbene wurden unterschiedlich erfasst.</p>
+    </div>
+
+    <div class="sources">
+      <h4>Hinweise zu Daten und Quellen</h4>
+      <p>Die Datumsangaben folgen dem gregorianischen Kalender; für Ereignisse in Russland ist das damals dort gültige julianische Datum in Klammern ergänzt.</p>
+      <p>Opferzahlen sind Schätzungen und in der Forschung teilweise umstritten. Wo Spannbreiten üblich sind, werden sie genannt. Dieses Projekt ersetzt keine Fachliteratur, sondern soll den Zusammenhang der Ereignisse anschaulich machen.</p>
+      <p>Historische Abbildungen sind nicht eingebunden; jedes Ereignis enthält im Datensatz einen Hinweis auf ein passendes gemeinfreies Bild (Feld <code>imageHint</code>), das über das Feld <code>image</code> ergänzt werden kann.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HILFE -->
+<section id="help" class="overlay" aria-hidden="true">
+  <div class="modal">
+    <h2>Bedienung</h2>
+    <ul class="help-list">
+      <li><span>Ereignis öffnen</span><kbd>Klick auf einen Stern</kbd></li>
+      <li><span>Karte verschieben</span><kbd>Ziehen / Wischen</kbd></li>
+      <li><span>Zoomen</span><kbd>Mausrad / Zwei Finger</kbd></li>
+      <li><span>Nächstes Ereignis</span><kbd>→</kbd></li>
+      <li><span>Vorheriges Ereignis</span><kbd>←</kbd></li>
+      <li><span>Gesamtansicht</span><kbd>0</kbd></li>
+      <li><span>Abspielen / Pause</span><kbd>Leertaste</kbd></li>
+      <li><span>Suche</span><kbd>/</kbd></li>
+      <li><span>Schließen</span><kbd>Esc</kbd></li>
+    </ul>
+    <div class="finale__actions" style="margin-top:24px">
+      <button class="btn" id="closeHelp">Verstanden</button>
+    </div>
+  </div>
+</section>
+
+<!-- Daten -->
+<script src="assets/js/data/categories.js"></script>
+<script src="assets/js/data/nations.js"></script>
+<script src="assets/js/data/events.js"></script>
+<script src="assets/js/data/geo.js"></script>
+<script src="assets/js/data/aftermath.js"></script>
+<!-- Anwendung -->
+<script src="assets/js/util.js"></script>
+<script src="assets/js/starfield.js"></script>
+<script src="assets/js/starmap.js"></script>
+<script src="assets/js/detail.js"></script>
+<script src="assets/js/europemap.js"></script>
+<script src="assets/js/search.js"></script>
+<script src="assets/js/playback.js"></script>
+<script src="assets/js/aftermath.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
