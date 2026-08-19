@@ -254,8 +254,21 @@
   };
 
   /** Punktgrößen und Schriftgrade an den Zoomfaktor anpassen */
+  /** Wie viele Kartenkoordinaten entspricht ein Bildschirmpixel?
+      Damit lassen sich Schriftgrößen und Punktradien in echten Pixeln
+      angeben – unabhängig von Zoomstufe und Fenstergröße. */
+  EuropeMap.prototype.unitsPerPixel = function () {
+    var r = this.svg.getBoundingClientRect();
+    var vh = this.view.w * (this.height / this.width);
+    var pxPerUnit = (r.width && r.height) ? Math.min(r.width / this.view.w, r.height / vh) : 1.45;
+    return pxPerUnit > 0 ? 1 / pxPerUnit : 0.69;
+  };
+
   EuropeMap.prototype.rescale = function () {
     var f = this.scale, self = this;
+    /* Zielgrößen in Bildschirmpixeln */
+    var u = this.unitsPerPixel();
+    var CAPITAL_FONT = 11.5 * u, COUNTRY_FONT = 14 * u, CALLOUT_FONT = 12.5 * u;
 
     var v = this.view;
     var h = v.w * (this.height / this.width);
@@ -265,7 +278,7 @@
     Object.keys(this.capitalNodes).forEach(function (code) {
       var node = self.capitalNodes[code];
       var active = node.dot.classList.contains('is-active');
-      node.dot.setAttribute('r', ((active ? 2.1 : 1.3) * f).toFixed(3));
+      node.dot.setAttribute('r', ((active ? 4.2 : 2.8) * u).toFixed(3));
 
       /* Beschriftungen außerhalb des Ausschnitts ausblenden und am
          rechten Rand nach links kippen – sonst werden sie angeschnitten. */
@@ -278,9 +291,10 @@
       node.label.classList.toggle('is-zoomed', f < 0.45);
 
       var toLeft = (node.x - left) / v.w > 0.70;
-      node.label.setAttribute('font-size', (5 * f).toFixed(3));
-      node.label.setAttribute('x', (node.x + (toLeft ? -2.2 : 2.2) * f).toFixed(3));
-      node.label.setAttribute('y', (node.y + 1.6 * f).toFixed(3));
+      node.label.setAttribute('font-size', CAPITAL_FONT.toFixed(3));
+      node.label.setAttribute('stroke-width', (CAPITAL_FONT * 0.17).toFixed(3));
+      node.label.setAttribute('x', (node.x + (toLeft ? -5 : 5) * u).toFixed(3));
+      node.label.setAttribute('y', (node.y + 4 * u).toFixed(3));
       node.label.setAttribute('text-anchor', toLeft ? 'end' : 'start');
     });
 
@@ -290,9 +304,9 @@
       node.label.style.display = inside ? '' : 'none';
       if (!inside) return;
 
-      var fontSize = 6.5 * f;
+      var fontSize = COUNTRY_FONT;
       node.label.setAttribute('font-size', fontSize.toFixed(3));
-      node.label.setAttribute('stroke-width', (fontSize * 0.16).toFixed(3));
+      node.label.setAttribute('stroke-width', (fontSize * 0.17).toFixed(3));
       node.label.setAttribute('y', node.y.toFixed(2));
 
       /* Ländernamen im Ausschnitt halten, statt sie am Rand
@@ -302,13 +316,14 @@
       /* Nicht anzeigen, wenn der Name breiter wäre als das Land selbst
          (etwa Belgien) oder als der gezeigte Ausschnitt. */
       if (tw > v.w * 0.62 || tw > node.width * 0.92) { node.label.style.display = 'none'; return; }
-      var pad = tw / 2 + 2 * f;
+      var pad = tw / 2 + 4 * u;
       node.label.setAttribute('x', util.clamp(node.x, left + pad, right - pad).toFixed(2));
     });
 
-    this.markerDot.setAttribute('r', (1.7 * f).toFixed(3));
-    this.markerRing.setAttribute('r', (3 * f).toFixed(3));
-    this.callout.setAttribute('font-size', (6 * f).toFixed(3));
+    this.markerDot.setAttribute('r', (3.6 * u).toFixed(3));
+    this.markerRing.setAttribute('r', (6 * u).toFixed(3));
+    this.callout.setAttribute('font-size', CALLOUT_FONT.toFixed(3));
+    this.callout.setAttribute('stroke-width', (CALLOUT_FONT * 0.17).toFixed(3));
     if (this.markerPos) this.placeCallout();
 
     this.layoutLabels();
@@ -385,7 +400,8 @@
       Die Seite richtet sich nach dem tatsächlich vorhandenen Platz,
       damit der Text nicht am Kartenrand abgeschnitten wird. */
   EuropeMap.prototype.placeCallout = function () {
-    var xy = this.markerPos, f = this.scale, v = this.view;
+    var xy = this.markerPos, v = this.view;
+    var f = this.unitsPerPixel() * 1.6;
     var left = v.cx - v.w / 2, right = v.cx + v.w / 2;
     var textWidth = this.callout.getComputedTextLength ? this.callout.getComputedTextLength() : 0;
     var gap = 6 * f;
