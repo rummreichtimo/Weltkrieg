@@ -39,6 +39,7 @@
 
     this.build();
     this.applyView();
+    this.bind();
   }
 
   EuropeMap.prototype.project = function (lon, lat) {
@@ -272,6 +273,10 @@
       node.label.style.display = inside ? '' : 'none';
       if (!inside) return;
 
+      /* Beim näheren Hineinzoomen alle Hauptstädte benennen, damit man
+         sich auch ohne ausgewähltes Ereignis orientieren kann. */
+      node.label.classList.toggle('is-zoomed', f < 0.45);
+
       var toLeft = (node.x - left) / v.w > 0.70;
       node.label.setAttribute('font-size', (5 * f).toFixed(3));
       node.label.setAttribute('x', (node.x + (toLeft ? -2.2 : 2.2) * f).toFixed(3));
@@ -344,6 +349,14 @@
       var node = self.capitalNodes[code].label;
       if (node.classList.contains('is-active')) add(node, node.getAttribute('text-anchor') || 'start');
     });
+    /* Erst danach die nur wegen des Zooms sichtbaren Namen – sie weichen
+       den Angaben zum gewählten Ereignis aus. */
+    Object.keys(this.capitalNodes).forEach(function (code) {
+      var node = self.capitalNodes[code].label;
+      if (!node.classList.contains('is-active') && node.classList.contains('is-zoomed')) {
+        add(node, node.getAttribute('text-anchor') || 'start');
+      }
+    });
     Object.keys(this.countryNodes).forEach(function (code) {
       var node = self.countryNodes[code].label;
       if (node.classList.contains('is-active')) add(node, 'middle');
@@ -409,26 +422,161 @@
     (function frame(now) {
       var t = util.clamp((now - start) / dur, 0, 1);
       var e = util.easeInOut(t);
-      self.view = {
+      self.view = self.clampView({
         cx: util.lerp(from.cx, target.cx, e),
         cy: util.lerp(from.cy, target.cy, e),
         w: util.lerp(from.w, target.w, e)
-      };
+      });
       self.applyView();
       if (t < 1) self.viewAnim = requestAnimationFrame(frame);
       else self.viewAnim = null;
     })(start);
   };
 
-  /** Zielausschnitt für einen Ort berechnen (innerhalb der Karte gehalten) */
-  EuropeMap.prototype.viewFor = function (xy) {
-    var w = this.width * 0.30;
+  /** Ausschnitt begrenzen: nie größer als die Karte und nie über den
+      Rand hinaus – so bleibt beim eigenen Zoomen immer Land im Bild. */
+  EuropeMap.prototype.clampView = function (view) {
+    var w = util.clamp(view.w, this.width * 0.05, this.width);
     var h = w * (this.height / this.width);
     return {
-      cx: util.clamp(xy[0], w / 2, this.width - w / 2),
-      cy: util.clamp(xy[1], h / 2, this.height - h / 2),
+      cx: util.clamp(view.cx, w / 2, this.width - w / 2),
+      cy: util.clamp(view.cy, h / 2, this.height - h / 2),
       w: w
     };
+  };
+
+  EuropeMap.prototype.setView = function (view) {
+    this.view = this.clampView(view);
+    this.applyView();
+  };
+
+  /** Bildschirmpunkt in Kartenkoordinaten umrechnen (beachtet die
+      Zentrierung des SVG-Inhalts bei abweichendem Seitenverhältnis) */
+  EuropeMap.prototype.fromScreen = function (clientX, clientY) {
+    var r = this.svg.getBoundingClientRect();
+    var vw = this.view.w, vh = vw * (this.height / this.width);
+    var scale = Math.min(r.width / vw, r.height / vh) || 1;
+    var offX = (r.width - vw * scale) / 2, offY = (r.height - vh * scale) / 2;
+    return {
+      x: (clientX - r.left - offX) / scale + (this.view.cx - vw / 2),
+      y: (clientY - r.top - offY) / scale + (this.view.cy - vh / 2),
+      scale: scale
+    };
+  };
+
+  /** Um einen festgehaltenen Punkt zoomen */
+  EuropeMap.prototype.zoomAt = function (factor, clientX, clientY) {
+    this.stopAnimation();
+    var p = this.fromScreen(clientX, clientY);
+    var w = util.clamp(this.view.w * factor, this.width * 0.05, this.width);
+    var ratio = w / this.view.w;
+    this.setView({
+      cx: p.x - (p.x - this.view.cx) * ratio,
+      cy: p.y - (p.y - this.view.cy) * ratio,
+      w: w
+    });
+  };
+
+  /** Zoomen über die Schaltflächen – Bezugspunkt ist die Kartenmitte */
+  EuropeMap.prototype.zoomBy = function (factor) {
+    this.stopAnimation();
+    var w = util.clamp(this.view.w * factor, this.width * 0.05, this.width);
+    this.animateView({ cx: this.view.cx, cy: this.view.cy, w: w }, 260);
+  };
+
+  EuropeMap.prototype.stopAnimation = function () {
+    if (this.viewAnim) { cancelAnimationFrame(this.viewAnim); this.viewAnim = null; }
+  };
+
+  EuropeMap.prototype.resetView = function () {
+    this.stopAnimation();
+    this.animateView({ cx: this.fullView.cx, cy: this.fullView.cy, w: this.fullView.w }, 600);
+  };
+
+  /* ---------- Bedienung der Karte: Zoomen, Verschieben, Wischen ---------- */
+
+  EuropeMap.prototype.bind = function () {
+    var self = this, svg = this.svg;
+    var pointers = new Map();
+    var drag = null, pinch = null;
+
+    function rebase() {
+      var entries = Array.from(pointers.entries());
+      if (entries.length === 1) {
+        pinch = null;
+        drag = { id: entries[0][0], x: entries[0][1].x, y: entries[0][1].y,
+                 cx: self.view.cx, cy: self.view.cy };
+      } else if (entries.length >= 2) {
+        drag = null;
+        var a = entries[0][1], b = entries[1][1];
+        pinch = {
+          dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+          mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2,
+          view: { cx: self.view.cx, cy: self.view.cy, w: self.view.w }
+        };
+      } else { drag = null; pinch = null; }
+    }
+
+    svg.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var delta = e.deltaMode === 1 ? e.deltaY * 18 : e.deltaY;
+      self.zoomAt(Math.exp(delta * 0.0016), e.clientX, e.clientY);
+    }, { passive: false });
+
+    svg.addEventListener('pointerdown', function (e) {
+      try { svg.setPointerCapture(e.pointerId); } catch (err) { /* Zeiger beendet */ }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      self.stopAnimation();
+      rebase();
+      svg.classList.add('is-panning');
+    });
+
+    svg.addEventListener('pointermove', function (e) {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointers.size >= 2 && pinch) {
+        var pts = Array.from(pointers.values());
+        var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+        var w = util.clamp(pinch.view.w * (pinch.dist / dist), self.width * 0.05, self.width);
+        var ratio = w / pinch.view.w;
+        var p = self.fromScreen(pinch.mx, pinch.my);
+        self.setView({
+          cx: p.x - (p.x - pinch.view.cx) * ratio,
+          cy: p.y - (p.y - pinch.view.cy) * ratio,
+          w: w
+        });
+        return;
+      }
+
+      if (!drag || e.pointerId !== drag.id) return;
+      var scale = self.fromScreen(0, 0).scale;
+      self.setView({
+        cx: drag.cx - (e.clientX - drag.x) / scale,
+        cy: drag.cy - (e.clientY - drag.y) / scale,
+        w: self.view.w
+      });
+    });
+
+    function endPointer(e) {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.delete(e.pointerId);
+      if (pointers.size === 0) { drag = null; pinch = null; svg.classList.remove('is-panning'); }
+      else rebase();
+    }
+    svg.addEventListener('pointerup', endPointer);
+    svg.addEventListener('pointercancel', endPointer);
+    svg.addEventListener('lostpointercapture', endPointer);
+
+    svg.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      self.resetView();
+    });
+  };
+
+  /** Zielausschnitt für einen Ort berechnen (innerhalb der Karte gehalten) */
+  EuropeMap.prototype.viewFor = function (xy) {
+    return this.clampView({ cx: xy[0], cy: xy[1], w: this.width * 0.30 });
   };
 
   /* ---------- Anzeige eines Ereignisses ---------- */

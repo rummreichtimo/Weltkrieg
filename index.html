@@ -90,7 +90,12 @@
   <aside id="panelMap" class="panel" aria-label="Europakarte">
     <div class="panel__head">
       <span class="panel__title">Schauplatz</span>
-      <button class="panel__close" data-close-panel="map" aria-label="Schließen">×</button>
+      <span class="panel__tools">
+        <button class="panel__tool" id="mapZoomIn" title="Karte vergrößern" aria-label="Karte vergrößern">+</button>
+        <button class="panel__tool" id="mapZoomOut" title="Karte verkleinern" aria-label="Karte verkleinern">−</button>
+        <button class="panel__tool" id="mapReset" title="Ganz Europa zeigen">Übersicht</button>
+        <button class="panel__close" data-close-panel="map" aria-label="Schließen">×</button>
+      </span>
     </div>
     <div class="panel__body">
       <svg id="europeMap" viewBox="0 0 100 100" role="img" aria-label="Schematische Karte Europas mit Frontverläufen"></svg>
@@ -212,6 +217,8 @@
       <li><span>Ereignis öffnen</span><kbd>Klick auf einen Stern</kbd></li>
       <li><span>Karte verschieben</span><kbd>Ziehen / Wischen</kbd></li>
       <li><span>Zoomen</span><kbd>Mausrad / Zwei Finger</kbd></li>
+      <li><span>Europakarte zoomen</span><kbd>Mausrad / Zwei Finger</kbd></li>
+      <li><span>Europakarte zurücksetzen</span><kbd>Doppelklick</kbd></li>
       <li><span>Nächstes Ereignis</span><kbd>→</kbd></li>
       <li><span>Vorheriges Ereignis</span><kbd>←</kbd></li>
       <li><span>Gesamtansicht</span><kbd>0</kbd></li>

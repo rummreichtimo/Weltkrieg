@@ -334,6 +334,10 @@
       btn.addEventListener('click', function () { setPanel(btn.dataset.closePanel, false); });
     });
 
+    util.qs('#mapReset').addEventListener('click', function () { app.europeMap.resetView(); });
+    util.qs('#mapZoomIn').addEventListener('click', function () { app.europeMap.zoomBy(1 / 1.5); });
+    util.qs('#mapZoomOut').addEventListener('click', function () { app.europeMap.zoomBy(1.5); });
+
     util.qs('#zoomIn').addEventListener('click', function () { app.starmap.zoomBy(1.45); });
     util.qs('#zoomOut').addEventListener('click', function () { app.starmap.zoomBy(1 / 1.45); });
     util.qs('#resetView').addEventListener('click', function () { showYear(null); });

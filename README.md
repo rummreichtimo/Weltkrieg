@@ -88,6 +88,9 @@ globalen Namensraum `window.WW1` – dadurch bleibt der Code ohne Bundler lesbar
 * Suche über Titel, Ort, Staat, Jahr und Beschreibungstexte („Verdun“, „USA“, „1917“, „U-Boot“)
 * Europakarte mit den Staatsgrenzen von 1914, Hauptstädten und schematischen Frontverläufen;
   beteiligte Staaten werden farbig hervorgehoben und benannt;
+  die Karte lässt sich selbst zoomen (Mausrad, Zwei-Finger-Geste, Schaltflächen),
+  verschieben und per Doppelklick oder „Übersicht“ zurücksetzen; beim näheren
+  Hineinzoomen erscheinen alle Hauptstadtnamen;
   sie fährt beim Auswählen eines Ereignisses auf dessen Schauplatz hinein und beim
   Abwählen wieder auf ganz Europa zurück
 * Präsentationsmodus: spielt 41 Schlüsselereignisse chronologisch ab (rund 4 Minuten), pausierbar,
