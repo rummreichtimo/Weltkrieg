@@ -425,21 +425,29 @@ body::after {  /* feine Vignette */
 #europeMap { display: block; width: 100%; height: auto; max-height: 42vh; }
 /* Linien behalten beim Hineinzoomen ihre Stärke (non-scaling-stroke),
    Punkte und Beschriftungen werden in europemap.js gegenskaliert. */
-.geo-country, .geo-graticule, .geo-front, .geo-connector, .geo-marker-ring { vector-effect: non-scaling-stroke; }
+.geo-country, .geo-border, .geo-graticule, .geo-front, .geo-connector, .geo-marker-ring { vector-effect: non-scaling-stroke; }
+/* Ergänzte Gebiete: nur Fläche, die Grenzlinie kommt aus .geo-border */
+.geo-country--patch { stroke: none; }
+.geo-border { fill: none; stroke: rgba(154,170,196,.38); stroke-width: .65; stroke-linejoin: round; }
 /* Staatsgebiete von 1914: Fläche plus Grenzlinie */
 .geo-country {
   fill: rgba(30,44,70,.55);
-  stroke: rgba(154,170,196,.38);
-  stroke-width: .65;
-  stroke-linejoin: round;
-  transition: fill .45s var(--ease), stroke .45s var(--ease);
+  stroke: none;
+  transition: fill .45s var(--ease);
 }
-.geo-country.is-active[data-side="central"] { fill: rgba(196,134,63,.26); stroke: rgba(219,163,98,.75); }
-.geo-country.is-active[data-side="entente"] { fill: rgba(90,138,207,.26); stroke: rgba(128,171,231,.75); }
+.geo-country.is-active[data-side="central"] { fill: rgba(196,134,63,.26); }
+.geo-country.is-active[data-side="entente"] { fill: rgba(90,138,207,.26); }
+.geo-border--country { transition: stroke .45s var(--ease); }
+.geo-border--country.is-active[data-side="central"] { stroke: rgba(219,163,98,.75); }
+.geo-border--country.is-active[data-side="entente"] { stroke: rgba(128,171,231,.75); }
 .geo-country-label {
   fill: var(--ink-2); opacity: 0; pointer-events: none;
   letter-spacing: .05em;
-  paint-order: stroke; stroke: rgba(6,10,18,.75); stroke-width: 2px; stroke-linejoin: round;
+  /* Die Kontur macht den Namen über der Landesfläche lesbar. Ihre
+     Stärke wird in europemap.js an die Schriftgröße gekoppelt – fest
+     gesetzt würde sie beim Hineinzoomen mitwachsen und die Schrift
+     zu einem schwarzen Klumpen zuziehen. */
+  paint-order: stroke; stroke: rgba(8,12,22,.55); stroke-linejoin: round;
   transition: opacity .45s var(--ease);
 }
 .geo-country-label.is-active { opacity: .92; }

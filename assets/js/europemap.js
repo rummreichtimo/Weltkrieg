@@ -76,28 +76,89 @@
       util.svg('path', { class: 'geo-graticule', d: this.path([[this.bounds.west, lat], [this.bounds.east, lat]]) }, grid);
     }
 
+    /* Korrekturflächen: Gebiete, die der Quelldatensatz dem falschen
+       Staat zuordnet, werden aus dessen Fläche ausgestanzt. Die Daten
+       selbst bleiben unverändert – ausgespart wird erst beim Zeichnen.
+       Wichtig: Ein clipPath vereinigt mehrere Pfade. Die Umkehrung
+       „alles außer dieser Fläche“ funktioniert nur, wenn Rechteck und
+       Aussparung Teilpfade EINES Pfades mit clip-rule evenodd sind. */
+    var defs = util.svg('defs', null, svg);
+    var cutPaths = {};
+    (WW1.GEO.CORRECTIONS || []).forEach(function (corr) {
+      var frame = 'M-50 -50 H' + (self.width + 50) + ' V' + (self.height + 50) + ' H-50 Z';
+      cutPaths[corr.from] = (cutPaths[corr.from] || frame) + ' ' + self.path(corr.ring, true);
+    });
+    Object.keys(cutPaths).forEach(function (code) {
+      var clip = util.svg('clipPath', { id: 'geo-cut-' + code }, defs);
+      util.svg('path', { d: cutPaths[code], 'clip-rule': 'evenodd' }, clip);
+    });
+
     /* Staatsgebiete im Stand von 1914 (Fläche + Grenzlinie) */
     var land = util.svg('g', { class: 'geo-land-group' }, svg);
     var labelLayer = util.svg('g', { class: 'geo-country-labels' }, svg);
     this.countryNodes = {};
 
+    var countryPaths = {};
+    WW1.GEO.COUNTRIES.forEach(function (country) {
+      if (country.nation) {
+        countryPaths[country.nation] = country.rings.map(function (r) { return self.path(r, true); }).join(' ');
+      }
+    });
+
+    /* Aussparungen vorbereiten:
+       cut  – Fläche, die dem Staat fälschlich zugeschlagen ist
+       hide – Bereich, in dem seine (falsche) Grenzlinie entfällt,
+              weil dort die korrigierte Grenze gilt */
+    var cuts = {}, hides = {};
+    (WW1.GEO.CORRECTIONS || []).forEach(function (corr) {
+      var d = self.path(corr.ring, true);
+      cuts[corr.from] = (cuts[corr.from] || '') + ' ' + d;
+      hides[corr.to] = (hides[corr.to] || '') + ' ' + d;
+    });
+
+    function inverseClip(id, shapes) {
+      if (defs.querySelector('#' + id)) return 'url(#' + id + ')';
+      var clip = util.svg('clipPath', { id: id }, defs);
+      util.svg('path', {
+        d: 'M-50 -50 H' + (self.width + 50) + ' V' + (self.height + 50) + ' H-50 Z' + shapes,
+        'clip-rule': 'evenodd'
+      }, clip);
+      return 'url(#' + id + ')';
+    }
+
+    this.countryNodes = {};
+
     WW1.GEO.COUNTRIES.forEach(function (country) {
       var d = country.rings.map(function (ring) { return self.path(ring, true); }).join(' ');
-      var path = util.svg('path', { class: 'geo-country', d: d, 'fill-rule': 'evenodd' }, land);
-
       var nation = country.nation && WW1.NATIONS[country.nation];
       var name = nation ? nation.name : country.label;
+
+      /* Fläche und Grenzlinie getrennt: Nur so lässt sich die falsche
+         Grenzlinie im korrigierten Gebiet ausblenden, ohne die Fläche
+         zu verlieren. */
+      var fill = util.svg('path', { class: 'geo-country', d: d }, land);
+      var line = util.svg('path', { class: 'geo-border geo-border--country', d: d }, land);
+
       if (name) {
-        var title = util.svg('title', null, path);
+        var title = util.svg('title', null, fill);
         title.textContent = name;
       }
       if (!country.nation) return;
 
-      path.dataset.nation = country.nation;
-      path.dataset.side = nation.side;
+      var code = country.nation;
+      if (cuts[code]) {
+        var cutRef = inverseClip('geo-cut-' + code, cuts[code]);
+        fill.setAttribute('clip-path', cutRef);
+        line.setAttribute('clip-path', cutRef);
+      }
+      if (hides[code]) {
+        line.setAttribute('clip-path', inverseClip('geo-hide-' + code, hides[code]));
+      }
 
-      /* Ausdehnung des Staatsgebiets in Kartenkoordinaten merken –
-         daran entscheidet sich, ob der Name hineinpasst. */
+      fill.dataset.nation = code;
+      fill.dataset.side = nation.side;
+      line.dataset.side = nation.side;
+
       var minX = Infinity, maxX = -Infinity;
       country.rings.forEach(function (ring) {
         ring.forEach(function (pt) {
@@ -107,13 +168,33 @@
         });
       });
 
-      /* Ländername erscheint, sobald der Staat am Ereignis beteiligt ist */
       var xy = self.project(country.centroid[0], country.centroid[1]);
       var label = util.svg('text', { class: 'geo-country-label', 'text-anchor': 'middle' }, labelLayer);
       label.textContent = nation.name;
-      self.countryNodes[country.nation] = {
-        path: path, label: label, x: xy[0], y: xy[1], width: maxX - minX
+      self.countryNodes[code] = {
+        paths: [fill], lines: [line], label: label, x: xy[0], y: xy[1], width: maxX - minX
       };
+    });
+
+    /* Korrigierte Gebiete dem richtigen Staat zuschlagen: Fläche ohne
+       Kontur, dazu die echten Grenz- und Küstenabschnitte als Linie. */
+    (WW1.GEO.CORRECTIONS || []).forEach(function (corr) {
+      var target = self.countryNodes[corr.to];
+      var nation = WW1.NATIONS[corr.to];
+      var patch = util.svg('path', {
+        class: 'geo-country geo-country--patch', d: self.path(corr.ring, true)
+      }, land);
+      if (nation) patch.dataset.side = nation.side;
+      /* Nur den bislang fehlenden Teil füllen, damit sich zwei
+         halbtransparente Flächen nicht überlagern. */
+      if (countryPaths[corr.to]) {
+        patch.setAttribute('clip-path', inverseClip('geo-add-' + corr.to, ' ' + countryPaths[corr.to]));
+      }
+      if (target) target.paths.push(patch);
+
+      (corr.outline || []).forEach(function (segment) {
+        util.svg('path', { class: 'geo-border', d: self.path(segment, false) }, land);
+      });
     });
 
     /* Frontverläufe */
@@ -204,7 +285,9 @@
       node.label.style.display = inside ? '' : 'none';
       if (!inside) return;
 
-      node.label.setAttribute('font-size', (6.5 * f).toFixed(3));
+      var fontSize = 6.5 * f;
+      node.label.setAttribute('font-size', fontSize.toFixed(3));
+      node.label.setAttribute('stroke-width', (fontSize * 0.16).toFixed(3));
       node.label.setAttribute('y', node.y.toFixed(2));
 
       /* Ländernamen im Ausschnitt halten, statt sie am Rand
@@ -366,7 +449,8 @@
     Object.keys(this.countryNodes).forEach(function (code) {
       var node = self.countryNodes[code];
       var on = !!participants[code];
-      node.path.classList.toggle('is-active', on);
+      node.paths.forEach(function (path) { path.classList.toggle('is-active', on); });
+      node.lines.forEach(function (line) { line.classList.toggle('is-active', on); });
       node.label.classList.toggle('is-active', on);
     });
 

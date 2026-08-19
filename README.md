@@ -147,6 +147,12 @@ mehrsprachige Texte (die Datenstruktur ist dafür bereits getrennt vom Code).
   Elsass-Lothringen gehört also zum Deutschen Reich, Polen ist Teil Russlands, Österreich-Ungarns
   und Deutschlands. Frontverläufe sind schematisch und geben die ungefähre Lage der jeweils
   genannten Phase wieder.
+* **Drei Korrekturen am Quelldatensatz** waren nötig, weil er an diesen Stellen einen anderen
+  Gebietsstand abbildet (die Korrekturen sind im Kopf von `assets/js/data/geo.js` dokumentiert):
+  Ostthrakien mit Edirne und der Halbinsel Gallipoli war 1914 osmanisch, nicht bulgarisch;
+  Triest gehörte zu Österreich-Ungarn, nicht zu Italien; und die Grenze Elsass-Lothringens
+  lag rund 20 km weiter westlich, sodass Metz deutsch war. Geprüft wurde das anhand von
+  40 Ortsstichproben und aller Frontpunkte.
 
 Die Anwendung ersetzt keine Fachliteratur. Ihr Ziel ist, den *Zusammenhang* der Ereignisse
 sichtbar zu machen: warum aus einem Attentat in Sarajevo binnen fünf Wochen ein
