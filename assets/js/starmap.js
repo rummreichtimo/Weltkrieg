@@ -72,6 +72,10 @@
     this.insets = { left: 0, right: 0 };
     this.pointers = new Map();
     this.dragged = false;
+    /* Nachlauf der Kamera: Geschwindigkeit beim Loslassen */
+    this.vel = { x: 0, y: 0 };
+    this.inertia = null;
+    this.reducedMotion = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     this.layout();
     this.build();
@@ -360,6 +364,9 @@
     this.updateLabels(rel);
     this.updateYearLabels(rel, k, tx, ty);
     this.forceLabels = false;
+
+    /* Hintergrundebenen über den Kamerastand informieren */
+    WW1.bus.emit('camera', { tx: tx, ty: ty, rel: rel });
   };
 
   /* Beschriftungen erscheinen gestaffelt: erst die Schlüsselereignisse,
@@ -433,6 +440,49 @@
     });
   };
 
+  /** Weiches Auslaufen der Bewegung nach dem Loslassen. Eine Kamera
+      stoppt nicht schlagartig – das trägt wesentlich dazu bei, dass die
+      Fahrt wie eine Kamerabewegung wirkt und nicht wie ein gezogenes Bild. */
+  StarMap.prototype.startInertia = function () {
+    var self = this;
+    if (this.reducedMotion) return;
+    if (Math.hypot(this.vel.x, this.vel.y) < 0.08) return;
+
+    /* Nur eine laufende Animation abbrechen – die eben gemessene
+       Geschwindigkeit wird ja gerade gebraucht. */
+    if (this.inertia) { cancelAnimationFrame(this.inertia); this.inertia = null; }
+    var last = performance.now();
+
+    function frame(now) {
+      var dt = Math.min(now - last, 40);
+      last = now;
+      if (dt <= 0) { self.inertia = requestAnimationFrame(frame); return; }
+
+      var decay = Math.exp(-dt / 260);
+      self.vel.x *= decay;
+      self.vel.y *= decay;
+
+      var wantX = self.vel.x * dt, wantY = self.vel.y * dt;
+      var beforeX = self.tx, beforeY = self.ty;
+      self.setTransform(self.k, self.tx + wantX, self.ty + wantY);
+
+      /* Am Rand der Karte auslaufen lassen – aber nur, wenn tatsächlich
+         eine Bewegung gewollt war und nicht stattgefunden hat. */
+      if (Math.abs(wantX) > 0.05 && Math.abs(self.tx - beforeX) < 0.01) self.vel.x = 0;
+      if (Math.abs(wantY) > 0.05 && Math.abs(self.ty - beforeY) < 0.01) self.vel.y = 0;
+
+      if (Math.hypot(self.vel.x, self.vel.y) > 0.02) self.inertia = requestAnimationFrame(frame);
+      else self.inertia = null;
+    }
+
+    this.inertia = requestAnimationFrame(frame);
+  };
+
+  StarMap.prototype.stopInertia = function () {
+    if (this.inertia) { cancelAnimationFrame(this.inertia); this.inertia = null; }
+    this.vel.x = 0; this.vel.y = 0;
+  };
+
   StarMap.prototype.setTransform = function (k, tx, ty) {
     var size = this.size();
     this.k = util.clamp(k, this.kMin || 0.05, 3.2);
@@ -446,6 +496,7 @@
   StarMap.prototype.animateTo = function (k, tx, ty, duration) {
     var self = this;
     var from = { k: this.k, tx: this.tx, ty: this.ty };
+    this.stopInertia();
     var start = performance.now();
     var dur = duration == null ? 950 : duration;
     if (this.anim) cancelAnimationFrame(this.anim);
@@ -620,6 +671,7 @@
       var rect = svg.getBoundingClientRect();
       var mx = e.clientX - rect.left, my = e.clientY - rect.top;
       var delta = e.deltaMode === 1 ? e.deltaY * 18 : e.deltaY;
+      self.stopInertia();
       var factor = Math.exp(-delta * 0.0016);
       var k2 = util.clamp(self.k * factor, self.kMin, 3.2);
       var ratio = k2 / self.k;
@@ -664,6 +716,8 @@
       }
 
       rebaseGesture();
+      self.stopInertia();
+      self.lastMove = null;
       if (self.anim) { cancelAnimationFrame(self.anim); self.anim = null; }
       svg.classList.add('is-panning');
     });
@@ -691,6 +745,18 @@
       if (!self.dragStart || e.pointerId !== self.dragStart.id) return;
       var dx = e.clientX - self.dragStart.x, dy = e.clientY - self.dragStart.y;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) self.dragged = true;
+
+      /* Geschwindigkeit für den Nachlauf mitschreiben (geglättet) */
+      var now = performance.now();
+      if (self.lastMove) {
+        var span = now - self.lastMove.t;
+        if (span > 0 && span < 120) {
+          self.vel.x = self.vel.x * 0.7 + ((e.clientX - self.lastMove.x) / span) * 0.3;
+          self.vel.y = self.vel.y * 0.7 + ((e.clientY - self.lastMove.y) / span) * 0.3;
+        }
+      }
+      self.lastMove = { t: now, x: e.clientX, y: e.clientY };
+
       self.setTransform(self.k, self.dragStart.tx + dx, self.dragStart.ty + dy);
     });
 
@@ -715,6 +781,8 @@
         self.pinchStart = null;
         self.downTarget = null;
         svg.classList.remove('is-panning');
+        if (self.dragged) self.startInertia();
+        self.lastMove = null;
       } else {
         /* Verbleibende Finger auf den aktuellen Kartenstand neu einmessen */
         rebaseGesture();

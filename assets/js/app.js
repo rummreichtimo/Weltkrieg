@@ -51,6 +51,20 @@
     bindUI();
     bindKeyboard();
 
+    /* Hintergrundebenen folgen der Kamera – Sternenfeld deutlich
+       langsamer als die Karte, der Nebel noch einmal langsamer.
+       Diese Tiefenstaffelung lässt das Bewegen wie eine Kamerafahrt
+       wirken statt wie ein verschobenes Bild. */
+    var nebulaWrap = util.qs('#nebulaWrap');
+    var nebulaBase = null;
+    bus.on('camera', function (cam) {
+      app.starfield.setCamera(cam.tx, cam.ty, cam.rel);
+      if (!nebulaBase) nebulaBase = { x: cam.tx, y: cam.ty };
+      nebulaWrap.style.transform = 'translate3d(' +
+        ((cam.tx - nebulaBase.x) * 0.015).toFixed(2) + 'px,' +
+        ((cam.ty - nebulaBase.y) * 0.015).toFixed(2) + 'px,0)';
+    });
+
     bus.on('select', onSelect);
     bus.on('playback:finished', function () { openFinale(); });
 

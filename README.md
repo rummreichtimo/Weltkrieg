@@ -72,6 +72,9 @@ globalen Namensraum `window.WW1` – dadurch bleibt der Code ohne Bundler lesbar
 * gestauchte Zeitachse: Vor dem 28. Juni 1914 stehen wenige Sterne, danach explodieren
   Dichte und Verbindungen („Urknall“ inkl. Schockwelle am Attentatsort)
 * Zoom per Mausrad, Verschieben per Ziehen, Pinch-Zoom und Wischen auf Touchgeräten
+* Kamerawirkung statt verschobener Fläche: Der Sternenhintergrund folgt der Bewegung in drei
+  Tiefenebenen (5 bis 14 %), der Nebel noch langsamer (1,5 %), und die Fahrt läuft nach dem
+  Loslassen weich aus
 * Beschriftungen erscheinen gestaffelt beim Hineinzoomen und weichen einander aus
 
 **Ereignisse**

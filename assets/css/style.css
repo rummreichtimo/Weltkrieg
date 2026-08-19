@@ -83,9 +83,15 @@ input { font: inherit; }
   display: block;
   z-index: 0;
 }
-#nebula {
-  position: fixed; inset: -10%;
+/* Der Träger folgt der Kamera (sehr langsam), die Wolke driftet darin */
+#nebulaWrap {
+  position: fixed; inset: -14%;
   z-index: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+#nebula {
+  position: absolute; inset: 0;
   pointer-events: none;
   background:
     radial-gradient(58% 44% at 22% 32%, rgba(58,74,120,.20), transparent 62%),

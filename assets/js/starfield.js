@@ -11,11 +11,24 @@
 
   var WW1 = global.WW1, util = WW1.util;
 
+  /* Position innerhalb des Bildschirms halten: So bleibt das Sternenfeld
+     auch bei weiten Fahrten gleichmäßig gefüllt. */
+  function wrap(value, size) {
+    var margin = 40;
+    var span = size + margin * 2;
+    return ((value + margin) % span + span) % span - margin;
+  }
+
   function Starfield(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.stars = [];
     this.parallax = { x: 0, y: 0, tx: 0, ty: 0 };
+    /* Kameraversatz der Sternenkarte. Der Hintergrund folgt ihm nur zu
+       einem Bruchteil – dieses Tiefenversetzen lässt die Bewegung wie
+       eine Kamerafahrt wirken statt wie ein verschobenes Bild. */
+    this.cam = { x: 0, y: 0, zoom: 1 };
+    this.camBase = null;
     this.running = false;
     this.reduced = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.resize();
@@ -31,6 +44,15 @@
       self.parallax.tx = (e.clientX / global.innerWidth - 0.5) * 14;
       self.parallax.ty = (e.clientY / global.innerHeight - 0.5) * 10;
     }, { passive: true });
+  };
+
+  /** Kamerastand der Sternenkarte übernehmen (Verschiebung und
+      relative Zoomstufe). Der erste Aufruf legt den Nullpunkt fest. */
+  Starfield.prototype.setCamera = function (tx, ty, zoomRel) {
+    if (!this.camBase) this.camBase = { x: tx, y: ty };
+    this.cam.x = tx - this.camBase.x;
+    this.cam.y = ty - this.camBase.y;
+    this.cam.zoom = zoomRel || 1;
   };
 
   Starfield.prototype.resize = function () {
@@ -87,6 +109,11 @@
     p.y += (p.ty - p.y) * 0.03;
     ctx.clearRect(0, 0, this.w, this.h);
 
+    /* Zoom wirkt sehr dezent: Der Hintergrund dehnt sich beim
+       Hineinzoomen minimal aus dem Bildmittelpunkt heraus. */
+    var zoomF = 1 + (util.clamp(this.cam.zoom, 0.4, 4) - 1) * 0.09;
+    var midX = this.w / 2, midY = this.h / 2;
+
     for (var i = 0; i < this.stars.length; i++) {
       var s = this.stars[i];
       if (!this.reduced) {
@@ -97,18 +124,24 @@
       }
       var twinkle = this.reduced ? 1 : 0.72 + 0.28 * Math.sin(now * 0.00035 * s.speed + s.phase);
       var alpha = s.base * twinkle;
-      var x = s.x + p.x * s.depth;
-      var y = s.y + p.y * s.depth;
+
+      /* Je näher ein Stern (größere Tiefe), desto stärker folgt er der
+         Kamera – zwischen 3 % und 14 % der Kartenbewegung. */
+      var follow = 0.03 + s.depth * 0.11;
+      var x = wrap(s.x + p.x * s.depth + this.cam.x * follow, this.w);
+      var y = wrap(s.y + p.y * s.depth + this.cam.y * follow, this.h);
+      x = midX + (x - midX) * zoomF;
+      y = midY + (y - midY) * zoomF;
 
       ctx.beginPath();
-      ctx.arc(x, y, s.r, 0, Math.PI * 2);
+      ctx.arc(x, y, s.r * zoomF, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(' + s.tint + ',' + alpha.toFixed(3) + ')';
       ctx.fill();
 
       /* Die hellsten Sterne erhalten einen sehr weichen Hof */
       if (s.r > 1.25) {
         ctx.beginPath();
-        ctx.arc(x, y, s.r * 3.4, 0, Math.PI * 2);
+        ctx.arc(x, y, s.r * 3.4 * zoomF, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(' + s.tint + ',' + (alpha * 0.06).toFixed(3) + ')';
         ctx.fill();
       }
