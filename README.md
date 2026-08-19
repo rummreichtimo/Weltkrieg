@@ -44,7 +44,7 @@ assets/js/data/
   categories.js                 7 Kategorien mit Farben, Beschreibungen und Bahnen
   nations.js                    15 Kriegsparteien mit Bündnis, Hauptstadt, Ein-/Austritt
   events.js                     77 Ereignisse (Vorgeschichte 1882 bis Nachkriegsordnung 1919)
-  geo.js                        Küstenlinien (Natural Earth, gemeinfrei) + Frontverläufe
+  geo.js                        Staatsgebiete und Grenzen von 1914 + Frontverläufe
   aftermath.js                  Bilanz „Was blieb?“ inkl. Verlustzahlen
 
 assets/js/
@@ -86,7 +86,8 @@ globalen Namensraum `window.WW1` – dadurch bleibt der Code ohne Bundler lesbar
 * Filter für alle sieben Kategorien (mit Anzahl je Kategorie)
 * Kriegsparteien-Panel: Mittelmächte und Entente; beteiligte Staaten leuchten auf
 * Suche über Titel, Ort, Staat, Jahr und Beschreibungstexte („Verdun“, „USA“, „1917“, „U-Boot“)
-* Europakarte mit echten Koordinaten, Hauptstädten und schematischen Frontverläufen;
+* Europakarte mit den Staatsgrenzen von 1914, Hauptstädten und schematischen Frontverläufen;
+  beteiligte Staaten werden farbig hervorgehoben und benannt;
   sie fährt beim Auswählen eines Ereignisses auf dessen Schauplatz hinein und beim
   Abwählen wieder auf ganz Europa zurück
 * Präsentationsmodus: spielt 41 Schlüsselereignisse chronologisch ab (rund 4 Minuten), pausierbar,
@@ -138,11 +139,33 @@ mehrsprachige Texte (die Datenstruktur ist dafür bereits getrennt vom Code).
   ist eine Spannbreite angegeben (z. B. Völkermord an den Armeniern, Spanische Grippe).
 * **Umstrittene Deutungen** (Kriegsschuldfrage, Härte des Versailler Vertrags) werden als
   umstritten gekennzeichnet, statt eine Position als gesichert darzustellen.
-* **Karte:** Sie zeigt bewusst keine Staatsgrenzen – die Grenzen von 1914 änderten sich im
-  Krieg laufend, heutige Grenzen wären irreführend. Dargestellt sind Küstenlinien,
-  Hauptstädte, Ereignisorte und schematische Frontverläufe.
-* **Küstenlinien:** Natural Earth (`ne_50m_land`, gemeinfrei), zugeschnitten und vereinfacht.
+* **Karte:** Dargestellt sind Staatsgebiete von 1914, Hauptstädte, Ereignisorte und
+  schematische Frontverläufe. Beim Auswählen eines Ereignisses werden die beteiligten
+  Staaten eingefärbt: Mittelmächte bernstein, Entente blau.
+* **Grenzen:** Die Karte zeigt die Staatsgebiete im Stand von **1914** – mit Deutschem Reich,
+  Österreich-Ungarn, Osmanischem Reich und Russischem Reich, nicht mit heutigen Grenzen.
+  Elsass-Lothringen gehört also zum Deutschen Reich, Polen ist Teil Russlands, Österreich-Ungarns
+  und Deutschlands. Frontverläufe sind schematisch und geben die ungefähre Lage der jeweils
+  genannten Phase wieder.
 
 Die Anwendung ersetzt keine Fachliteratur. Ihr Ziel ist, den *Zusammenhang* der Ereignisse
 sichtbar zu machen: warum aus einem Attentat in Sarajevo binnen fünf Wochen ein
 europäischer Krieg wurde – und warum er vier Jahre lang nicht endete.
+
+---
+
+## 6 · Lizenz und Quellen
+
+Dieses Projekt steht unter der **GNU General Public License v3.0** (siehe `LICENSE`).
+
+Grund dafür ist der verwendete Grenzdatensatz: Die Staatsgebiete von 1914 stammen aus den
+**Historical Basemaps** von André Ourednik
+(<https://github.com/aourednik/historical-basemaps>, Datei `world_1914.geojson`),
+die unter GPL-3.0 stehen. Für diese Anwendung wurden sie auf den Kartenausschnitt
+zugeschnitten und vereinfacht; das Ergebnis liegt in `assets/js/data/geo.js`.
+
+Alle übrigen Inhalte – Ereignistexte, Gestaltung und Programmcode – sind für dieses Projekt
+neu entstanden und stehen ebenfalls unter GPL-3.0.
+
+Werden später historische Abbildungen ergänzt, ist deren Lizenz jeweils gesondert im Feld
+`credit` des Ereignisses anzugeben (siehe `assets/img/README.md`).

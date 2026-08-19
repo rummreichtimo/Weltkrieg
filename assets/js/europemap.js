@@ -76,10 +76,44 @@
       util.svg('path', { class: 'geo-graticule', d: this.path([[this.bounds.west, lat], [this.bounds.east, lat]]) }, grid);
     }
 
-    /* Landmassen */
+    /* Staatsgebiete im Stand von 1914 (Fläche + Grenzlinie) */
     var land = util.svg('g', { class: 'geo-land-group' }, svg);
-    WW1.GEO.LANDMASSES.forEach(function (mass) {
-      util.svg('path', { class: 'geo-land', d: self.path(mass.points, true) }, land);
+    var labelLayer = util.svg('g', { class: 'geo-country-labels' }, svg);
+    this.countryNodes = {};
+
+    WW1.GEO.COUNTRIES.forEach(function (country) {
+      var d = country.rings.map(function (ring) { return self.path(ring, true); }).join(' ');
+      var path = util.svg('path', { class: 'geo-country', d: d, 'fill-rule': 'evenodd' }, land);
+
+      var nation = country.nation && WW1.NATIONS[country.nation];
+      var name = nation ? nation.name : country.label;
+      if (name) {
+        var title = util.svg('title', null, path);
+        title.textContent = name;
+      }
+      if (!country.nation) return;
+
+      path.dataset.nation = country.nation;
+      path.dataset.side = nation.side;
+
+      /* Ausdehnung des Staatsgebiets in Kartenkoordinaten merken –
+         daran entscheidet sich, ob der Name hineinpasst. */
+      var minX = Infinity, maxX = -Infinity;
+      country.rings.forEach(function (ring) {
+        ring.forEach(function (pt) {
+          var px = self.project(pt[0], pt[1])[0];
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+        });
+      });
+
+      /* Ländername erscheint, sobald der Staat am Ereignis beteiligt ist */
+      var xy = self.project(country.centroid[0], country.centroid[1]);
+      var label = util.svg('text', { class: 'geo-country-label', 'text-anchor': 'middle' }, labelLayer);
+      label.textContent = nation.name;
+      self.countryNodes[country.nation] = {
+        path: path, label: label, x: xy[0], y: xy[1], width: maxX - minX
+      };
     });
 
     /* Frontverläufe */
@@ -164,10 +198,83 @@
       node.label.setAttribute('text-anchor', toLeft ? 'end' : 'start');
     });
 
+    Object.keys(this.countryNodes).forEach(function (code) {
+      var node = self.countryNodes[code];
+      var inside = node.x > left && node.x < right && node.y > top && node.y < bottom;
+      node.label.style.display = inside ? '' : 'none';
+      if (!inside) return;
+
+      node.label.setAttribute('font-size', (6.5 * f).toFixed(3));
+      node.label.setAttribute('y', node.y.toFixed(2));
+
+      /* Ländernamen im Ausschnitt halten, statt sie am Rand
+         abzuschneiden – und ausblenden, wenn sie für den gezeigten
+         Ausschnitt zu breit wären. */
+      var tw = node.label.getComputedTextLength ? node.label.getComputedTextLength() : 0;
+      /* Nicht anzeigen, wenn der Name breiter wäre als das Land selbst
+         (etwa Belgien) oder als der gezeigte Ausschnitt. */
+      if (tw > v.w * 0.62 || tw > node.width * 0.92) { node.label.style.display = 'none'; return; }
+      var pad = tw / 2 + 2 * f;
+      node.label.setAttribute('x', util.clamp(node.x, left + pad, right - pad).toFixed(2));
+    });
+
     this.markerDot.setAttribute('r', (1.7 * f).toFixed(3));
     this.markerRing.setAttribute('r', (3 * f).toFixed(3));
     this.callout.setAttribute('font-size', (6 * f).toFixed(3));
     if (this.markerPos) this.placeCallout();
+
+    this.layoutLabels();
+  };
+
+  /** Textbreite bei Schriftgröße 1 – einmal messen und merken */
+  EuropeMap.prototype.unitWidth = function (node, text) {
+    if (node._uwText !== text || !node._uw) {
+      var fs = parseFloat(node.getAttribute('font-size')) || 6;
+      var measured = node.getComputedTextLength ? node.getComputedTextLength() : 0;
+      node._uw = (measured || text.length * 0.55 * fs) / fs;
+      node._uwText = text;
+    }
+    return node._uw;
+  };
+
+  /** Überlappende Beschriftungen auflösen.
+      Rangfolge: Ereignisort vor Hauptstadt vor Ländername – so bleibt
+      immer die Angabe stehen, die zum gewählten Ereignis gehört. */
+  EuropeMap.prototype.layoutLabels = function () {
+    var self = this, items = [];
+
+    function add(node, anchor) {
+      if (!node || node.style.display === 'none' || !node.textContent) return;
+      var fs = parseFloat(node.getAttribute('font-size')) || 6;
+      var w = self.unitWidth(node, node.textContent) * fs;
+      var x = parseFloat(node.getAttribute('x')) || 0;
+      var y = parseFloat(node.getAttribute('y')) || 0;
+      var x0 = anchor === 'end' ? x - w : (anchor === 'middle' ? x - w / 2 : x);
+      items.push({
+        node: node,
+        box: { x0: x0 - fs * 0.2, x1: x0 + w + fs * 0.2, y0: y - fs * 0.9, y1: y + fs * 0.35 }
+      });
+    }
+
+    if (this.markerPos) add(this.callout, this.callout.getAttribute('text-anchor'));
+    Object.keys(this.capitalNodes).forEach(function (code) {
+      var node = self.capitalNodes[code].label;
+      if (node.classList.contains('is-active')) add(node, node.getAttribute('text-anchor') || 'start');
+    });
+    Object.keys(this.countryNodes).forEach(function (code) {
+      var node = self.countryNodes[code].label;
+      if (node.classList.contains('is-active')) add(node, 'middle');
+    });
+
+    var placed = [];
+    items.forEach(function (item) {
+      var free = placed.every(function (other) {
+        return item.box.x0 > other.x1 || item.box.x1 < other.x0 ||
+               item.box.y0 > other.y1 || item.box.y1 < other.y0;
+      });
+      if (free) { placed.push(item.box); item.node.style.display = ''; }
+      else item.node.style.display = 'none';
+    });
   };
 
   /** Ortsangabe auf das Wesentliche kürzen: Klammerzusätze und
@@ -253,6 +360,14 @@
       var node = self.capitalNodes[code];
       node.dot.classList.toggle('is-active', !!participants[code]);
       node.label.classList.toggle('is-active', !!participants[code]);
+    });
+
+    /* Beteiligte Staatsgebiete einfärben und benennen */
+    Object.keys(this.countryNodes).forEach(function (code) {
+      var node = self.countryNodes[code];
+      var on = !!participants[code];
+      node.path.classList.toggle('is-active', on);
+      node.label.classList.toggle('is-active', on);
     });
 
     /* Front hervorheben */

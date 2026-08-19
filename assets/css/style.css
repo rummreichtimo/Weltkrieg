@@ -425,8 +425,24 @@ body::after {  /* feine Vignette */
 #europeMap { display: block; width: 100%; height: auto; max-height: 42vh; }
 /* Linien behalten beim Hineinzoomen ihre Stärke (non-scaling-stroke),
    Punkte und Beschriftungen werden in europemap.js gegenskaliert. */
-.geo-land, .geo-graticule, .geo-front, .geo-connector, .geo-marker-ring { vector-effect: non-scaling-stroke; }
-.geo-land { fill: rgba(30,44,70,.55); stroke: rgba(147,161,184,.22); stroke-width: .7; }
+.geo-country, .geo-graticule, .geo-front, .geo-connector, .geo-marker-ring { vector-effect: non-scaling-stroke; }
+/* Staatsgebiete von 1914: Fläche plus Grenzlinie */
+.geo-country {
+  fill: rgba(30,44,70,.55);
+  stroke: rgba(154,170,196,.38);
+  stroke-width: .65;
+  stroke-linejoin: round;
+  transition: fill .45s var(--ease), stroke .45s var(--ease);
+}
+.geo-country.is-active[data-side="central"] { fill: rgba(196,134,63,.26); stroke: rgba(219,163,98,.75); }
+.geo-country.is-active[data-side="entente"] { fill: rgba(90,138,207,.26); stroke: rgba(128,171,231,.75); }
+.geo-country-label {
+  fill: var(--ink-2); opacity: 0; pointer-events: none;
+  letter-spacing: .05em;
+  paint-order: stroke; stroke: rgba(6,10,18,.75); stroke-width: 2px; stroke-linejoin: round;
+  transition: opacity .45s var(--ease);
+}
+.geo-country-label.is-active { opacity: .92; }
 .geo-graticule { stroke: rgba(147,161,184,.07); stroke-width: .55; fill: none; }
 .geo-front { fill: none; stroke: rgba(193,84,74,.45); stroke-width: 1.5; stroke-dasharray: 4 4; transition: stroke .4s var(--ease), stroke-width .4s var(--ease), opacity .4s var(--ease); opacity: .5; }
 .geo-front.is-active { stroke: #E0776B; stroke-width: 2.2; opacity: 1; stroke-dasharray: none; }
