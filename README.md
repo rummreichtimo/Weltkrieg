@@ -86,7 +86,9 @@ globalen Namensraum `window.WW1` – dadurch bleibt der Code ohne Bundler lesbar
 * Filter für alle sieben Kategorien (mit Anzahl je Kategorie)
 * Kriegsparteien-Panel: Mittelmächte und Entente; beteiligte Staaten leuchten auf
 * Suche über Titel, Ort, Staat, Jahr und Beschreibungstexte („Verdun“, „USA“, „1917“, „U-Boot“)
-* Europakarte mit echten Koordinaten, Hauptstädten und schematischen Frontverläufen
+* Europakarte mit echten Koordinaten, Hauptstädten und schematischen Frontverläufen;
+  sie fährt beim Auswählen eines Ereignisses auf dessen Schauplatz hinein und beim
+  Abwählen wieder auf ganz Europa zurück
 * Präsentationsmodus: spielt 41 Schlüsselereignisse chronologisch ab (rund 4 Minuten), pausierbar,
   jeder eigene Klick unterbricht sofort
 * Abschlussansicht zum 11. November 1918 und Bilanz „Was blieb?“ mit Verlustdiagramm

@@ -29,8 +29,16 @@
     this.y1 = mercatorY(b.south);
     this.height = this.width * (this.y0 - this.y1) / ((b.east - b.west) * Math.PI / 180);
 
-    svgEl.setAttribute('viewBox', '0 0 ' + this.width.toFixed(1) + ' ' + this.height.toFixed(1));
+    /* Kartenkamera: „view“ ist der aktuell gezeigte Ausschnitt.
+       Beim Auswählen eines Ereignisses fährt sie auf den Ort hinein,
+       ohne Auswahl wieder auf ganz Europa zurück. */
+    this.fullView = { cx: this.width / 2, cy: this.height / 2, w: this.width };
+    this.view = { cx: this.fullView.cx, cy: this.fullView.cy, w: this.fullView.w };
+    this.scale = 1;
+    this.viewAnim = null;
+
     this.build();
+    this.applyView();
   }
 
   EuropeMap.prototype.project = function (lon, lat) {
@@ -103,7 +111,7 @@
       label.textContent = nation.capital;
       var title = util.svg('title', null, dot);
       title.textContent = nation.name + ' · ' + nation.capital;
-      self.capitalNodes[code] = { dot: dot, label: label };
+      self.capitalNodes[code] = { dot: dot, label: label, x: xy[0], y: xy[1] };
     });
 
     /* Markierung des ausgewählten Ereignisses */
@@ -115,6 +123,126 @@
     this.markerGroup = marker;
   };
 
+  /* ---------- Kamera ---------- */
+
+  /** Ausschnitt anwenden und alle Punkte/Beschriftungen gegenskalieren,
+      damit sie beim Hineinzoomen nicht mitwachsen. */
+  EuropeMap.prototype.applyView = function () {
+    var v = this.view;
+    var h = v.w * (this.height / this.width);
+    this.svg.setAttribute('viewBox',
+      (v.cx - v.w / 2).toFixed(2) + ' ' + (v.cy - h / 2).toFixed(2) + ' ' +
+      v.w.toFixed(2) + ' ' + h.toFixed(2));
+    this.scale = v.w / this.width;
+    this.rescale();
+  };
+
+  /** Punktgrößen und Schriftgrade an den Zoomfaktor anpassen */
+  EuropeMap.prototype.rescale = function () {
+    var f = this.scale, self = this;
+
+    var v = this.view;
+    var h = v.w * (this.height / this.width);
+    var left = v.cx - v.w / 2, right = v.cx + v.w / 2;
+    var top = v.cy - h / 2, bottom = v.cy + h / 2;
+
+    Object.keys(this.capitalNodes).forEach(function (code) {
+      var node = self.capitalNodes[code];
+      var active = node.dot.classList.contains('is-active');
+      node.dot.setAttribute('r', ((active ? 2.1 : 1.3) * f).toFixed(3));
+
+      /* Beschriftungen außerhalb des Ausschnitts ausblenden und am
+         rechten Rand nach links kippen – sonst werden sie angeschnitten. */
+      var inside = node.x > left && node.x < right && node.y > top && node.y < bottom;
+      node.label.style.display = inside ? '' : 'none';
+      if (!inside) return;
+
+      var toLeft = (node.x - left) / v.w > 0.70;
+      node.label.setAttribute('font-size', (5 * f).toFixed(3));
+      node.label.setAttribute('x', (node.x + (toLeft ? -2.2 : 2.2) * f).toFixed(3));
+      node.label.setAttribute('y', (node.y + 1.6 * f).toFixed(3));
+      node.label.setAttribute('text-anchor', toLeft ? 'end' : 'start');
+    });
+
+    this.markerDot.setAttribute('r', (1.7 * f).toFixed(3));
+    this.markerRing.setAttribute('r', (3 * f).toFixed(3));
+    this.callout.setAttribute('font-size', (6 * f).toFixed(3));
+    if (this.markerPos) this.placeCallout();
+  };
+
+  /** Ortsangabe auf das Wesentliche kürzen: Klammerzusätze und
+      nachgestellte Regionen entfallen („Ostpreußen (heute Stębark,
+      Polen)“ wird zu „Ostpreußen“). */
+  function shortPlace(text) {
+    var t = String(text).replace(/\s*\([^)]*\)/g, '').split(',')[0].trim();
+    return t.length > 26 ? t.slice(0, 25).trim() + '…' : t;
+  }
+
+  /** Beschriftung des Ereignisorts neben den Marker setzen.
+      Die Seite richtet sich nach dem tatsächlich vorhandenen Platz,
+      damit der Text nicht am Kartenrand abgeschnitten wird. */
+  EuropeMap.prototype.placeCallout = function () {
+    var xy = this.markerPos, f = this.scale, v = this.view;
+    var left = v.cx - v.w / 2, right = v.cx + v.w / 2;
+    var textWidth = this.callout.getComputedTextLength ? this.callout.getComputedTextLength() : 0;
+    var gap = 6 * f;
+
+    var fitsRight = xy[0] + gap + textWidth < right - 2 * f;
+    var fitsLeft = xy[0] - gap - textWidth > left + 2 * f;
+    var toRight = fitsRight || (!fitsLeft && (right - xy[0]) >= (xy[0] - left));
+    var labelX = xy[0] + (toRight ? gap : -gap);
+
+    this.connector.setAttribute('d',
+      'M' + xy[0].toFixed(2) + ' ' + xy[1].toFixed(2) + 'L' + labelX.toFixed(2) + ' ' + xy[1].toFixed(2));
+    this.callout.setAttribute('x', (labelX + (toRight ? 1.5 : -1.5) * f).toFixed(2));
+    this.callout.setAttribute('y', (xy[1] + 2 * f).toFixed(2));
+    this.callout.setAttribute('text-anchor', toRight ? 'start' : 'end');
+  };
+
+  /** Weich auf einen Zielausschnitt fahren */
+  EuropeMap.prototype.animateView = function (target, duration) {
+    var self = this;
+    var from = { cx: this.view.cx, cy: this.view.cy, w: this.view.w };
+    var dur = duration == null ? 780 : duration;
+
+    if (this.viewAnim) cancelAnimationFrame(this.viewAnim);
+
+    /* Ist der Unterschied verschwindend klein, direkt setzen */
+    if (Math.abs(from.w - target.w) < 0.4 &&
+        Math.abs(from.cx - target.cx) < 0.4 && Math.abs(from.cy - target.cy) < 0.4) {
+      this.view = target;
+      this.applyView();
+      return;
+    }
+
+    var start = performance.now();
+    (function frame(now) {
+      var t = util.clamp((now - start) / dur, 0, 1);
+      var e = util.easeInOut(t);
+      self.view = {
+        cx: util.lerp(from.cx, target.cx, e),
+        cy: util.lerp(from.cy, target.cy, e),
+        w: util.lerp(from.w, target.w, e)
+      };
+      self.applyView();
+      if (t < 1) self.viewAnim = requestAnimationFrame(frame);
+      else self.viewAnim = null;
+    })(start);
+  };
+
+  /** Zielausschnitt für einen Ort berechnen (innerhalb der Karte gehalten) */
+  EuropeMap.prototype.viewFor = function (xy) {
+    var w = this.width * 0.30;
+    var h = w * (this.height / this.width);
+    return {
+      cx: util.clamp(xy[0], w / 2, this.width - w / 2),
+      cy: util.clamp(xy[1], h / 2, this.height - h / 2),
+      w: w
+    };
+  };
+
+  /* ---------- Anzeige eines Ereignisses ---------- */
+
   EuropeMap.prototype.show = function (ev) {
     var self = this;
 
@@ -123,10 +251,8 @@
     if (ev) (ev.participants || []).forEach(function (code) { participants[code] = true; });
     Object.keys(this.capitalNodes).forEach(function (code) {
       var node = self.capitalNodes[code];
-      var on = !!participants[code];
-      node.dot.classList.toggle('is-active', on);
-      node.dot.setAttribute('r', on ? 2.1 : 1.3);
-      node.label.classList.toggle('is-active', on);
+      node.dot.classList.toggle('is-active', !!participants[code]);
+      node.label.classList.toggle('is-active', !!participants[code]);
     });
 
     /* Front hervorheben */
@@ -137,34 +263,34 @@
       if (entry.extra) entry.extra.classList.toggle('is-active', on);
     });
 
+    /* Kein Ereignis oder Schauplatz außerhalb der Karte: Gesamtansicht */
     if (!ev || ev.lat == null || !this.inBounds(ev.lon, ev.lat)) {
+      this.markerPos = null;
       this.markerGroup.setAttribute('opacity', '0');
       this.markerRing.classList.remove('is-active');
       if (this.note) {
         this.note.textContent = !ev ? this.defaultNote
           : 'Schauplatz außerhalb des Kartenausschnitts: ' + (ev.location || '—') + '.';
       }
+      this.animateView({ cx: this.fullView.cx, cy: this.fullView.cy, w: this.fullView.w });
       return;
     }
 
     var xy = this.project(ev.lon, ev.lat);
-    var toRight = xy[0] < this.width * 0.62;
-    var labelX = xy[0] + (toRight ? 6 : -6);
-
+    this.markerPos = xy;
     this.markerDot.setAttribute('cx', xy[0].toFixed(2));
     this.markerDot.setAttribute('cy', xy[1].toFixed(2));
     this.markerRing.setAttribute('cx', xy[0].toFixed(2));
     this.markerRing.setAttribute('cy', xy[1].toFixed(2));
-    this.connector.setAttribute('d', 'M' + xy[0].toFixed(2) + ' ' + xy[1].toFixed(2) + 'L' + labelX.toFixed(2) + ' ' + xy[1].toFixed(2));
-    this.callout.setAttribute('x', (labelX + (toRight ? 1.5 : -1.5)).toFixed(2));
-    this.callout.setAttribute('y', (xy[1] + 2).toFixed(2));
-    this.callout.setAttribute('text-anchor', toRight ? 'start' : 'end');
-    this.callout.textContent = (ev.location || ev.title).split(',')[0];
+    this.callout.textContent = shortPlace(ev.location || ev.title);
 
     this.markerGroup.setAttribute('opacity', '1');
     this.markerRing.classList.remove('is-active');
     void this.markerRing.getBoundingClientRect();
     this.markerRing.classList.add('is-active');
+
+    /* Auf den Ereignisort hineinfahren */
+    this.animateView(this.viewFor(xy));
 
     if (this.note) {
       var front = ev.front && WW1.GEO.FRONTS[ev.front];
